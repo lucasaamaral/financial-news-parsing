@@ -12,8 +12,7 @@ The pre-built dataset is available on Hugging Face:
 
 **[lucasalmda/pt-br-financial-news-sentiment](https://huggingface.co/datasets/lucasalmda/pt-br-financial-news-sentiment)**
 
-- **43,363 articles** spanning 2016-2025
-- Enriched with section classification, author attribution, and editorial tags
+- **38,493 articles** spanning 2016-2025
 - Ready for sentiment analysis, NLP tasks, and financial ML models
 
 ## Architecture
@@ -84,8 +83,6 @@ financial-news-parsing/
 │   ├── analyzer.py         # Financial signal counting helpers
 │   ├── filters.py          # Multi-stage relevance filtering logic
 │   └── text.py             # Text normalization and utilities
-└── data/
-    └── financial_news_br.jsonl  # Output (43k+ records)
 ```
 
 ## Output Format (JSONL)
@@ -152,46 +149,6 @@ The pipeline uses multi-stage filtering to ensure high-quality financial news:
 - Editorial content: columnist recommendations, opinion pieces
 - Sponsored content: content marked as institutional partnership
 - Roundups: live event coverage, "latest news" compilations
-- Chronological outliers: outside 2016-2025 range
-
-## 📈 Dataset Characteristics
-
-- **Time span:** 10 years of continuous coverage (2016-2025)
-- **Sources:** Balanced mix of premium business (Valor), investor-focused (InfoMoney), and magazine content (Exame)
-- **Average title length:** ~60 characters
-- **Average lead length:** ~300-400 words
-- **Brazil context:** ~85% of records mention Brazilian companies or markets
-- **Empty descriptions:** ~15% (common for news sites)
-- **Popular assets mentioned:** VALE3, PETR4, ITUB4, BBAS3, GGBR4
-- **Key markets:** Ibovespa, B3, Tesouro Direto, Selic rate
-
-## 🔧 Loading the Dataset
-
-### Python with Pandas
-```python
-import json
-import pandas as pd
-
-records = [json.loads(line) for line in open('financial_news_br.jsonl')]
-df = pd.DataFrame(records)
-
-# Filter by source
-valor_news = df[df['source'] == 'Valor Econômico']
-
-# Filter by sentiment section
-mercado_news = df[df['section'] == 'mercados']
-
-# Find articles with specific tag
-vale_articles = df[df['tags'].apply(lambda x: 'Vale' in x if x else False)]
-```
-
-### Hugging Face Datasets
-```python
-from datasets import load_dataset
-
-ds = load_dataset("lucasalmda/pt-br-financial-news-sentiment", split="train")
-print(ds[0])  # First record
-```
 
 ## 📜 License
 
