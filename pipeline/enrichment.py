@@ -8,7 +8,7 @@ import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
-from datetime import timezone
+from datetime import date, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -62,6 +62,8 @@ def fetch_article_record(
     client: CachedHttpClient,
     candidate: CandidateArticle,
     metadata_only: bool,
+    start_date: date,
+    end_date: date,
 ) -> Optional[ArticleRecord]:
     """Download and enrich a single candidate. Returns None if filtered out."""
     try:
@@ -73,6 +75,8 @@ def fetch_article_record(
     soup = BeautifulSoup(payload.text, "lxml")
     title = extract_title(soup) or candidate.title or slug_title_from_url(candidate.url)
     published_at = extract_published_at(soup) or candidate.published_at
+    if not (start_date <= published_at.date() <= end_date):
+        return None
     description = extract_description(soup)
     authors = extract_authors(soup)
     tags = extract_tags(soup)
@@ -99,6 +103,7 @@ def fetch_article_record(
         description=description,
         lead=lead,
     )
+    iso = published_at.isocalendar()
     week_start, week_end = get_week_bounds(published_at)
     context = FilterContext(
         section=candidate.section,
@@ -114,10 +119,10 @@ def fetch_article_record(
         title=title,
         description=description,
         published_at=published_at.astimezone(timezone.utc).isoformat(),
-        week_key=candidate.week_key,
+        week_key=f"{iso.year}-W{iso.week:02d}",
         week_start=week_start.isoformat(),
         week_end=week_end.isoformat(),
-        weekday=candidate.weekday,
+        weekday=published_at.weekday(),
         section=candidate.section,
         authors=authors,
         tags=tags,
@@ -133,6 +138,8 @@ def enrich_selected_candidates(
     client: CachedHttpClient,
     candidates: Iterable[CandidateArticle],
     *,
+    start_date: date,
+    end_date: date,
     output_path: Path,
     metadata_only: bool,
     resume: bool,
@@ -183,7 +190,12 @@ def enrich_selected_candidates(
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {
                     executor.submit(
-                        fetch_article_record, client, cand, metadata_only
+                        fetch_article_record,
+                        client,
+                        cand,
+                        metadata_only,
+                        start_date,
+                        end_date,
                     ): cand
                     for cand in week_pool
                 }

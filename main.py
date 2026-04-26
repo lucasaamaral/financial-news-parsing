@@ -118,6 +118,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     enrich_selected_candidates(
         client,
         selected_candidates,
+        start_date=start_date,
+        end_date=end_date,
         output_path=output_path,
         metadata_only=args.metadata_only,
         resume=args.resume,
