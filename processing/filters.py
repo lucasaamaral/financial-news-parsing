@@ -2,48 +2,51 @@
 
 from __future__ import annotations
 
-from urllib.parse import unquote, urlparse
-
 from domain.config import (
-    ADVISORY_SECTIONS,
     AGGREGATE_RESULTS_MARKERS,
     CORPORATE_ANNOUNCEMENT_TITLE_MARKERS,
     CORPORATE_RESULTS_METRIC_MARKERS,
     CORPORATE_RESULTS_PERIOD_MARKERS,
     DIRECT_BRAZIL_CONTEXT_KEYWORDS,
-    EDITORIAL_LEAD_MARKERS,
-    EDITORIAL_SECTIONS,
-    EDITORIAL_TITLE_MARKERS,
     FINAL_SECTION_DENYLIST,
     FINANCE_KEYWORDS,
+    GENERIC_TITLE_MARKERS,
     FOREIGN_CONTEXT_KEYWORDS,
     GENERIC_TITLE_DENYLIST,
     GROSS_SECTION_ALLOWLIST,
     GROSS_SECTION_DENYLIST,
-    HIGH_SCRUTINY_SECTIONS,
+    RAW_PATH_DENYLIST_MARKERS,
     ROUNDUP_URL_MARKERS,
-    SPONSORED_AUTHOR_MARKERS,
-    SPONSORED_TEXT_MARKERS,
     STRICT_SECTION_SIGNAL_THRESHOLD,
 )
 from domain.models import ArticleRecord, CandidateArticle, FilterContext
 from processing.analyzer import (
-    count_clear_strong_finance_signals,
-    count_directional_signals,
     count_financial_signals,
     count_focused_topic_signals,
 )
-from processing.text import normalize_text, slug_title_from_url, text_contains_keyword
+from processing.text import (
+    get_url_path_variants,
+    normalize_text,
+    slug_title_from_url,
+    text_contains_keyword,
+)
 
 
 def is_gross_match(candidate: CandidateArticle) -> bool:
     """Fast section/URL allowlist/denylist check — no I/O required."""
-    normalized_path = normalize_text(unquote(urlparse(candidate.url).path))
-    parts = [
-        normalize_text(part) for part in urlparse(candidate.url).path.split("/") if part
-    ]
-    allowlist = GROSS_SECTION_ALLOWLIST.get(candidate.source, set())
-    denylist = GROSS_SECTION_DENYLIST.get(candidate.source, set())
+    raw_path, normalized_path = get_url_path_variants(candidate.url)
+    if _is_disallowed_raw_path(raw_path):
+        return False
+
+    parts = [normalize_text(part) for part in raw_path.split("/") if part]
+    allowlist = {
+        normalize_text(value)
+        for value in GROSS_SECTION_ALLOWLIST.get(candidate.source, set())
+    }
+    denylist = {
+        normalize_text(value)
+        for value in GROSS_SECTION_DENYLIST.get(candidate.source, set())
+    }
     if any(part in denylist for part in parts):
         if not any(
             text_contains_keyword(normalized_path, keyword)
@@ -64,11 +67,11 @@ def is_promising_candidate(candidate: CandidateArticle) -> bool:
         return False
 
     slug_title = slug_title_from_url(candidate.url)
-    headline_context = " ".join(
-        filter(None, [candidate.title, slug_title, candidate.section])
-    )
+    headline_context = " ".join(filter(None, [candidate.title, slug_title]))
     normalized_headline = normalize_text(headline_context)
-    normalized_path = normalize_text(unquote(urlparse(candidate.url).path))
+    raw_path, normalized_path = get_url_path_variants(candidate.url)
+    if _is_disallowed_raw_path(raw_path):
+        return False
 
     if _looks_like_individual_company_results(
         normalized_headline, normalized_path=normalized_path
@@ -76,60 +79,38 @@ def is_promising_candidate(candidate: CandidateArticle) -> bool:
         return False
     if _is_exterior_only_context(f"{normalized_headline} {normalized_path}"):
         return False
-
-    if normalized_section in EDITORIAL_SECTIONS and any(
-        marker in normalized_headline for marker in EDITORIAL_TITLE_MARKERS
-    ):
+    if _has_generic_title_marker(normalized_headline):
         return False
 
     focused_topic_hits = count_focused_topic_signals(headline_context)
-    if focused_topic_hits == 0:
-        return False
-
-    if any(marker in normalized_path for marker in ROUNDUP_URL_MARKERS):
-        if focused_topic_hits < 2:
-            return False
-
     core_hits, brazil_hits = count_financial_signals(headline_context)
-    directional_hits = count_directional_signals(headline_context)
-    clear_strong_finance_hits = count_clear_strong_finance_signals(headline_context)
-
-    if (
-        directional_hits == 0
-        and normalized_section in HIGH_SCRUTINY_SECTIONS
-        and focused_topic_hits < 2
-    ):
+    if focused_topic_hits == 0 and core_hits == 0:
         return False
-    if clear_strong_finance_hits == 0 and brazil_hits == 0:
-        return False
+    if any(marker in normalized_path for marker in ROUNDUP_URL_MARKERS):
+        return focused_topic_hits + brazil_hits >= 2
 
-    score = (
-        core_hits
-        + (brazil_hits * 2)
-        + focused_topic_hits
-        + directional_hits
-    )
-    minimum_score = max(
-        2,
-        STRICT_SECTION_SIGNAL_THRESHOLD.get(normalized_section, 2) - 2,
+    score = _compute_relevance_score(core_hits, brazil_hits, focused_topic_hits)
+    minimum_score = (
+        2 if normalized_section not in STRICT_SECTION_SIGNAL_THRESHOLD else 3
     )
     return score >= minimum_score
 
 
 def looks_financial_record(record: ArticleRecord, context: FilterContext) -> bool:
-    """Fine-grained filter applied after full article fetch."""
+    """Fine-grained filter applied after page-metadata fetch."""
     normalized_section = normalize_text(context.section)
     if normalized_section in FINAL_SECTION_DENYLIST:
         return False
-    if _is_sponsored_record(record, context):
-        return False
-    if _is_editorial_corporate_record(record, context):
+    raw_path, _ = get_url_path_variants(record.url)
+    if _is_disallowed_raw_path(raw_path):
         return False
     if _is_corporate_announcement_record(record):
         return False
     if _is_exterior_only_record(record, context):
         return False
     if _is_roundup_like_record(record, context):
+        return False
+    if _has_generic_title_marker(normalize_text(record.title)):
         return False
     if not _has_direct_brazil_context(record, context):
         return False
@@ -140,8 +121,6 @@ def looks_financial_record(record: ArticleRecord, context: FilterContext) -> boo
             [
                 record.title,
                 record.description,
-                record.lead,
-                context.text,
                 " ".join(context.tags),
             ],
         )
@@ -151,35 +130,20 @@ def looks_financial_record(record: ArticleRecord, context: FilterContext) -> boo
             None,
             [
                 record.title,
-                record.lead,
                 " ".join(context.tags),
             ],
         )
     )
-    core_hits, brazil_hits = count_financial_signals(combined)
+    core_hits = context.finance_keyword_hits
+    brazil_hits = context.brazil_market_keyword_hits
     focused_topic_hits = count_focused_topic_signals(combined)
-    headline_topic_hits = count_focused_topic_signals(headline_context)
-    directional_hits = count_directional_signals(headline_context)
-    clear_strong_finance_hits = count_clear_strong_finance_signals(combined)
-
-    if focused_topic_hits == 0:
-        return False
-    if headline_topic_hits == 0:
-        if normalized_section not in ADVISORY_SECTIONS or focused_topic_hits < 2:
-            return False
-    if directional_hits == 0:
-        return False
-    if clear_strong_finance_hits == 0:
+    if focused_topic_hits == 0 and core_hits == 0:
         return False
 
-    score = core_hits + (brazil_hits * 2)
-    if (
-        normalized_section in STRICT_SECTION_SIGNAL_THRESHOLD
-        and clear_strong_finance_hits < 2
-    ):
-        return False
-    if normalized_section in HIGH_SCRUTINY_SECTIONS:
-        if headline_topic_hits < 2 and focused_topic_hits < 3:
+    score = _compute_relevance_score(core_hits, brazil_hits, focused_topic_hits)
+    if normalized_section in STRICT_SECTION_SIGNAL_THRESHOLD:
+        headline_topic_hits = count_focused_topic_signals(headline_context)
+        if headline_topic_hits == 0 and focused_topic_hits < 2:
             return False
     minimum_score = STRICT_SECTION_SIGNAL_THRESHOLD.get(normalized_section, 2)
     return score >= minimum_score
@@ -194,57 +158,20 @@ def _is_roundup_like_record(record: ArticleRecord, context: FilterContext) -> bo
     normalized_title = normalize_text(record.title)
     if normalized_title in GENERIC_TITLE_DENYLIST:
         return True
-    normalized_path = normalize_text(urlparse(record.url).path)
+    _, normalized_path = get_url_path_variants(record.url)
     if not any(marker in normalized_path for marker in ROUNDUP_URL_MARKERS):
         return False
-    score = (
-        context.finance_keyword_hits
-        + (context.brazil_market_keyword_hits * 2)
-    )
+    score = context.finance_keyword_hits + (context.brazil_market_keyword_hits * 2)
     return score < 4
-
-
-def _is_sponsored_record(record: ArticleRecord, context: FilterContext) -> bool:
-    if any(
-        marker in normalize_text(author)
-        for author in context.authors
-        for marker in SPONSORED_AUTHOR_MARKERS
-    ):
-        return True
-    fields = [record.title, record.description, record.lead, context.text]
-    return any(
-        marker in normalize_text(value)
-        for value in fields
-        if value
-        for marker in SPONSORED_TEXT_MARKERS
-    )
 
 
 def _is_corporate_announcement_record(record: ArticleRecord) -> bool:
     """Rejects pure corporate-event announcements (dividends, results, debentures)."""
     normalized_headline = normalize_text(record.title)
-    normalized_path = normalize_text(urlparse(record.url).path)
+    _, normalized_path = get_url_path_variants(record.url)
     return _looks_like_individual_company_results(
         normalized_headline, normalized_path=normalized_path
     )
-
-
-def _is_editorial_corporate_record(
-    record: ArticleRecord, context: FilterContext
-) -> bool:
-    normalized_section = normalize_text(context.section)
-    if normalized_section not in EDITORIAL_SECTIONS:
-        return False
-    title_fields = [record.title, record.description]
-    if any(
-        marker in normalize_text(value)
-        for value in title_fields
-        if value
-        for marker in EDITORIAL_TITLE_MARKERS
-    ):
-        return True
-    lead = normalize_text(record.lead)
-    return any(marker in lead for marker in EDITORIAL_LEAD_MARKERS)
 
 
 def _has_direct_brazil_context(record: ArticleRecord, context: FilterContext) -> bool:
@@ -253,7 +180,7 @@ def _has_direct_brazil_context(record: ArticleRecord, context: FilterContext) ->
             None,
             [
                 record.title,
-                record.lead,
+                record.description,
                 " ".join(context.tags),
             ],
         )
@@ -267,7 +194,7 @@ def _is_exterior_only_record(record: ArticleRecord, context: FilterContext) -> b
             None,
             [
                 record.title,
-                record.lead,
+                record.description,
                 " ".join(context.tags),
             ],
         )
@@ -289,6 +216,33 @@ def _is_exterior_only_context(normalized_text: str) -> bool:
         text_contains_keyword(normalized_text, keyword)
         for keyword in FOREIGN_CONTEXT_KEYWORDS
     ) and not _has_brazil_market_context(normalized_text)
+
+
+def _is_editorial_url(raw_path: str) -> bool:
+    return (
+        "/post/" in raw_path
+        or "/coluna/" in raw_path
+        or "/minhas-financas/" in raw_path
+    )
+
+
+def _is_disallowed_raw_path(raw_path: str) -> bool:
+    return any(marker in raw_path for marker in RAW_PATH_DENYLIST_MARKERS)
+
+
+def _has_generic_title_marker(normalized_title: str) -> bool:
+    return any(
+        text_contains_keyword(normalized_title, marker)
+        for marker in GENERIC_TITLE_MARKERS
+    )
+
+
+def _compute_relevance_score(
+    core_hits: int,
+    brazil_hits: int,
+    focused_topic_hits: int,
+) -> int:
+    return core_hits + (brazil_hits * 2) + focused_topic_hits
 
 
 def _looks_like_individual_company_results(

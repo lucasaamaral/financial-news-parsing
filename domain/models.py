@@ -31,26 +31,20 @@ class ArticleRecord:
     url: str
     title: str
     description: Optional[str]
+    sentiment_text: str
     published_at: str
     week_key: str
     week_start: str
     week_end: str
-    weekday: int
-    section: Optional[str]
-    authors: list[str]
     tags: list[str]
-    lead: Optional[str]
-    sentiment_text: str
 
 
 @dataclass(slots=True)
 class FilterContext:
     section: Optional[str]
-    authors: list[str]
     tags: list[str]
     finance_keyword_hits: int
     brazil_market_keyword_hits: int
-    text: Optional[str]
 
 
 @dataclass(slots=True)

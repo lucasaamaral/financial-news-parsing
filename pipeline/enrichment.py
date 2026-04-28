@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import threading
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import date, timezone
@@ -15,22 +14,18 @@ from typing import Iterable, Optional
 import requests
 from bs4 import BeautifulSoup
 
-from .collection import _group_by_week_and_day
+from .collection import group_by_week_and_day
 from domain.config import DEFAULT_ENRICH_WORKERS, OUTPUT_FIELDS
 from processing.filters import looks_financial_record
 from processing.extractor import (
     build_sentiment_text,
-    extract_article_text,
-    extract_authors,
     extract_description,
-    extract_lead_paragraph,
     extract_published_at,
     extract_tags,
     extract_title,
-    normalize_article_text,
     sanitize_description,
 )
-from fetcher.client import CachedHttpClient
+from fetcher.client import CachedHttpClient, RobotsTxtBlockedError
 from domain.models import ArticleRecord, CandidateArticle, FilterContext
 from processing.analyzer import count_financial_signals
 from processing.text import get_week_bounds, slug_title_from_url
@@ -61,13 +56,15 @@ def load_seen_urls(output_path: Path) -> set[str]:
 def fetch_article_record(
     client: CachedHttpClient,
     candidate: CandidateArticle,
-    metadata_only: bool,
     start_date: date,
     end_date: date,
 ) -> Optional[ArticleRecord]:
-    """Download and enrich a single candidate. Returns None if filtered out."""
+    """Download and enrich a single candidate using page metadata only."""
     try:
         payload = client.get_text(candidate.url)
+    except RobotsTxtBlockedError as exc:
+        LOGGER.info("Skipped by robots.txt: %s", exc)
+        return None
     except requests.HTTPError as exc:
         LOGGER.debug("Failed to fetch %s: %s", candidate.url, exc)
         return None
@@ -78,56 +75,34 @@ def fetch_article_record(
     if not (start_date <= published_at.date() <= end_date):
         return None
     description = extract_description(soup)
-    authors = extract_authors(soup)
     tags = extract_tags(soup)
-    text: Optional[str] = None
-    lead: Optional[str] = None
-
-    if not metadata_only:
-        text = extract_article_text(payload.text, soup, payload.final_url)
-        if text:
-            text = normalize_article_text(text)
-            lead = extract_lead_paragraph(text, title=title, description=description)
-    if metadata_only and description:
-        lead = description
-
-    description = sanitize_description(description, title=title, lead=lead)
+    description = sanitize_description(description, title=title)
     if not title:
         return None
 
+    metadata_surface = " ".join(filter(None, [title, description, " ".join(tags)]))
     finance_keyword_hits, brazil_market_keyword_hits = count_financial_signals(
-        " ".join(filter(None, [title, description, lead, text, " ".join(tags)]))
-    )
-    sentiment_text = build_sentiment_text(
-        title=title,
-        description=description,
-        lead=lead,
+        metadata_surface
     )
     iso = published_at.isocalendar()
     week_start, week_end = get_week_bounds(published_at)
     context = FilterContext(
         section=candidate.section,
-        authors=authors,
         tags=tags,
         finance_keyword_hits=finance_keyword_hits,
         brazil_market_keyword_hits=brazil_market_keyword_hits,
-        text=text,
     )
     record = ArticleRecord(
         source=candidate.source,
         url=candidate.url,
         title=title,
         description=description,
+        sentiment_text=build_sentiment_text(title, description),
         published_at=published_at.astimezone(timezone.utc).isoformat(),
         week_key=f"{iso.year}-W{iso.week:02d}",
         week_start=week_start.isoformat(),
         week_end=week_end.isoformat(),
-        weekday=published_at.weekday(),
-        section=candidate.section,
-        authors=authors,
         tags=tags,
-        lead=lead,
-        sentiment_text=sentiment_text,
     )
     if not looks_financial_record(record, context):
         return None
@@ -141,12 +116,11 @@ def enrich_selected_candidates(
     start_date: date,
     end_date: date,
     output_path: Path,
-    metadata_only: bool,
     resume: bool,
     workers: int = DEFAULT_ENRICH_WORKERS,
 ) -> int:
-    """Fetch, filter, and persist enriched candidates. Returns total saved count."""
-    grouped = _group_by_week_and_day(candidates)
+    """Fetch page metadata, filter, and persist approved candidates."""
+    grouped = group_by_week_and_day(candidates)
     seen_urls = load_seen_urls(output_path) if resume else set()
     total_candidates = sum(
         len(pool) for week_groups in grouped.values() for pool in week_groups.values()
@@ -186,14 +160,12 @@ def enrich_selected_candidates(
             if not week_pool:
                 continue
 
-            day_filled: dict[int, int] = defaultdict(int)
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {
                     executor.submit(
                         fetch_article_record,
                         client,
                         cand,
-                        metadata_only,
                         start_date,
                         end_date,
                     ): cand

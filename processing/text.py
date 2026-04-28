@@ -51,6 +51,11 @@ def slug_title_from_url(url: str) -> str:
     return clean_space(slug)
 
 
+def get_url_path_variants(url: str) -> tuple[str, str]:
+    raw_path = urlparse(url).path.lower()
+    return raw_path, normalize_text(unquote(raw_path))
+
+
 def extract_section(url: str) -> Optional[str]:
     parts = [part for part in urlparse(url).path.split("/") if part]
     if not parts:

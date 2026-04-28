@@ -11,8 +11,8 @@ from typing import Iterable, Iterator, Optional
 import requests
 
 from fetcher.adapters import BaseAdapter
+from fetcher.client import RobotsTxtBlockedError
 from domain.config import (
-    DEFAULT_ATTEMPT_MULTIPLIER,
     DEFAULT_RANDOM_SEED,
     SOURCE_PRIORITY,
 )
@@ -52,6 +52,9 @@ def collect_candidates(
                     if newest is None
                     else max(newest, candidate.published_at)
                 )
+        except RobotsTxtBlockedError as exc:
+            LOGGER.warning("%s skipped by robots.txt: %s", adapter.source, exc)
+            continue
         except requests.RequestException as exc:
             LOGGER.warning("%s is currently unavailable: %s", adapter.source, exc)
             continue
@@ -81,7 +84,7 @@ def select_candidates_for_enrichment(
     *,
     seen_urls: Optional[set[str]] = None,
 ) -> list[CandidateArticle]:
-    grouped = _group_by_week_and_day(candidates)
+    grouped = group_by_week_and_day(candidates)
     selected_urls = set(seen_urls or ())
     selected_candidates: list[CandidateArticle] = []
 
@@ -131,7 +134,7 @@ def _dedupe_candidates(
     return list(best_by_url.values())
 
 
-def _group_by_week_and_day(
+def group_by_week_and_day(
     candidates: Iterable[CandidateArticle],
 ) -> dict[str, dict[int, list[CandidateArticle]]]:
     grouped: dict[str, dict[int, list[CandidateArticle]]] = defaultdict(

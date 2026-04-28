@@ -38,13 +38,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--cache-dir",
-        default=".cache/",
-        help="HTTP cache directory.",
-    )
-    parser.add_argument(
-        "--metadata-only",
-        action="store_true",
-        help="Save metadata only, without full article text.",
+        help="Optional HTTP cache directory for persistent on-disk response reuse.",
     )
     parser.add_argument(
         "--resume",
@@ -78,7 +72,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    client = CachedHttpClient(cache_dir=Path(args.cache_dir))
+    cache_dir = Path(args.cache_dir) if args.cache_dir else None
+    client = CachedHttpClient(cache_dir=cache_dir)
 
     LOGGER.info(
         "Requested interval: %s to %s", start_date.isoformat(), end_date.isoformat()
@@ -121,7 +116,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         start_date=start_date,
         end_date=end_date,
         output_path=output_path,
-        metadata_only=args.metadata_only,
         resume=args.resume,
         workers=args.workers,
     )

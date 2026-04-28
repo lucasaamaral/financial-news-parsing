@@ -2,16 +2,129 @@
 
 from __future__ import annotations
 
-FINANCE_KEYWORDS = {
+_COMMON_MARKET_SIGNAL_KEYWORDS = {
+    "b3",
+    "copom",
+    "ibovespa",
+    "selic",
+}
+
+_BRAZIL_CENTRAL_BANK_KEYWORDS = {
+    "banco central do brasil",
+    "banco central brasileiro",
+    "bcb",
+}
+
+_BRAZIL_POLICY_SIGNAL_KEYWORDS = _COMMON_MARKET_SIGNAL_KEYWORDS | {
+    "cvm",
+    "ipca",
+    "tesouro direto",
+}
+
+_BRAZIL_MARKET_REFERENCE_KEYWORDS = {
+    "bovespa",
+    "dolar",
+    "dolar futuro",
+    "ifix",
+    "mercado brasileiro",
+    "real brasileiro",
+}
+
+_DIRECT_BRAZIL_REFERENCE_KEYWORDS = {
+    "bovespa",
+    "ifix",
+    "mercado brasileiro",
+    "real brasileiro",
+}
+
+_DIRECT_BRAZIL_ENTITY_KEYWORDS = {
+    "banco do brasil",
+    "bb seguridade",
+    "bndes",
+    "credito imobiliario",
+    "dis",
+    "economia brasileira",
+    "itau",
+    "itau unibanco",
+    "juros futuros",
+    "ministerio da fazenda",
+    "petrobras",
+    "pib brasileiro",
+    "tesouro nacional",
+    "vale",
+}
+
+_EXCHANGE_AGAINST_REAL_KEYWORDS = {
+    "ante o real",
+    "contra o real",
+    "frente ao real",
+}
+
+_FOCUSED_CENTRAL_BANK_TOPIC_KEYWORDS = {
+    "banco central",
+    "banco central do brasil",
+    "bcb",
+    "boletim focus",
+    "focus",
+}
+
+_FOCUSED_MARKET_TOPIC_KEYWORDS = _COMMON_MARKET_SIGNAL_KEYWORDS | {
+    "aluguel",
+    "cambio",
+    "cdi",
+    "credito",
+    "curva de juros",
+    "debenture",
+    "debentures",
+    "dividendo",
+    "dividendos",
+    "dolar",
+    "emprestimo",
+    "financiamento",
+    "indice futuro",
+    "inflacao",
+    "ipca",
+    "juros",
+    "mini-indice",
+    "minicontratos",
+    "pib",
+    "pmi",
+    "pmis",
+    "provento",
+    "proventos",
+    "renda fixa",
+    "spread",
+    "swap cambial",
+    "tesouro",
+    "tesouro direto",
+}
+
+_LIVE_COVERAGE_TITLE_MARKERS = {
+    "ao vivo",
+    "cobertura ao vivo",
+    "destaques",
+    "minuto a minuto",
+    "ultimas noticias",
+    "ultimas notícias",
+}
+
+_RAW_PATH_DENY_SECTIONS = {
+    "esg",
+    "fundos",
+    "mercado-imobiliario",
+    "minhas-financas",
+    "onde-investir",
+    "stock-pickers",
+}
+
+FINANCE_KEYWORDS = _COMMON_MARKET_SIGNAL_KEYWORDS | {
     "acao",
     "acoes",
     "agronegocio",
-    "b3",
     "balanco",
     "banco central",
     "bolsa",
     "cambio",
-    "copom",
     "credito",
     "criptomoeda",
     "debenture",
@@ -22,7 +135,6 @@ FINANCE_KEYWORDS = {
     "etf",
     "fii",
     "fundo",
-    "ibovespa",
     "ifix",
     "inflacao",
     "investimento",
@@ -38,84 +150,26 @@ FINANCE_KEYWORDS = {
     "real",
     "renda fixa",
     "risco",
-    "selic",
     "tesouro",
     "vale",
 }
 
-STRONG_FINANCE_KEYWORDS = {
-    "acao",
-    "acoes",
-    "aluguel",
-    "ativo",
-    "ativos",
-    "b3",
-    "bolsa",
-    "cambio",
-    "cdi",
-    "copom",
-    "credito",
-    "debenture",
-    "dividendo",
-    "dolar",
-    "emprestimo",
-    "etf",
-    "fii",
-    "financiamento",
-    "free float",
-    "fundo",
-    "ibovespa",
-    "ifix",
-    "inflacao",
-    "investidor",
-    "investidores",
-    "investimento",
-    "investimentos",
-    "ipo",
-    "juros",
-    "lucro",
-    "renda fixa",
-    "risco",
-    "selic",
-    "taxa",
-    "tesouro",
-    "valuation",
-}
-
-AMBIGUOUS_STRONG_FINANCE_KEYWORDS = {
-    "acao",
-    "ativo",
-    "ativos",
-    "taxa",
-}
-
-BRAZIL_MARKET_KEYWORDS = {
-    "b3",
-    "anbima",
-    "banco central do brasil",
-    "banco central brasileiro",
-    "bcb",
-    "bndes",
-    "bovespa",
-    "brasil",
-    "brasileira",
-    "brasileiras",
-    "brasileiro",
-    "brasileiros",
-    "copom",
-    "cvm",
-    "dolar",
-    "dolar futuro",
-    "ibovespa",
-    "ifix",
-    "ibc-br",
-    "ipca",
-    "mercado brasileiro",
-    "ministerio da fazenda",
-    "real brasileiro",
-    "selic",
-    "tesouro direto",
-}
+BRAZIL_MARKET_KEYWORDS = (
+    _BRAZIL_POLICY_SIGNAL_KEYWORDS
+    | _BRAZIL_CENTRAL_BANK_KEYWORDS
+    | _BRAZIL_MARKET_REFERENCE_KEYWORDS
+    | {
+        "anbima",
+        "bndes",
+        "brasil",
+        "brasileira",
+        "brasileiras",
+        "brasileiro",
+        "brasileiros",
+        "ibc-br",
+        "ministerio da fazenda",
+    }
+)
 
 FOREIGN_CONTEXT_KEYWORDS = {
     "argentina",
@@ -150,40 +204,14 @@ FOREIGN_CONTEXT_KEYWORDS = {
     "zona do euro",
 }
 
-DIRECT_BRAZIL_CONTEXT_KEYWORDS = {
-    "ante o real",
-    "banco do brasil",
-    "banco central do brasil",
-    "banco central brasileiro",
-    "b3",
-    "bb seguridade",
-    "bcb",
-    "bndes",
-    "bovespa",
-    "contra o real",
-    "copom",
-    "cvm",
-    "dis",
-    "economia brasileira",
-    "frente ao real",
-    "ibc-br",
-    "ibovespa",
-    "ifix",
-    "ipca",
-    "credito imobiliario",
-    "itau",
-    "itau unibanco",
-    "juros futuros",
-    "mercado brasileiro",
-    "ministerio da fazenda",
-    "pib brasileiro",
-    "petrobras",
-    "real brasileiro",
-    "selic",
-    "tesouro nacional",
-    "tesouro direto",
-    "vale",
-}
+DIRECT_BRAZIL_CONTEXT_KEYWORDS = (
+    _BRAZIL_POLICY_SIGNAL_KEYWORDS
+    | _BRAZIL_CENTRAL_BANK_KEYWORDS
+    | _DIRECT_BRAZIL_REFERENCE_KEYWORDS
+    | _DIRECT_BRAZIL_ENTITY_KEYWORDS
+    | _EXCHANGE_AGAINST_REAL_KEYWORDS
+    | {"ibc-br"}
+)
 
 CORPORATE_RESULTS_METRIC_MARKERS = {
     "balanco",
@@ -228,94 +256,10 @@ AGGREGATE_RESULTS_MARKERS = {
     "setores",
 }
 
-FOCUSED_TOPIC_KEYWORDS = {
-    "aluguel",
-    "b3",
-    "banco central",
-    "banco central do brasil",
-    "bcb",
-    "boletim focus",
-    "cambio",
-    "cdi",
-    "copom",
-    "credito",
-    "curva de juros",
-    "debenture",
-    "debentures",
-    "dividendo",
-    "dividendos",
-    "dolar",
-    "emprestimo",
-    "financiamento",
-    "focus",
-    "ibovespa",
-    "indice futuro",
-    "inflacao",
-    "ipca",
-    "juros",
-    "mini-indice",
-    "minicontratos",
-    "pib",
-    "pmi",
-    "pmis",
-    "provento",
-    "proventos",
-    "renda fixa",
-    "selic",
-    "spread",
-    "swap cambial",
-    "tesouro",
-    "tesouro direto",
-}
-
-DIRECTIONAL_SIGNAL_KEYWORDS = {
-    "acelera",
-    "aceleracao",
-    "alta",
-    "amplia",
-    "aperta",
-    "aperto",
-    "aposta",
-    "aprova",
-    "arrefece",
-    "avanca",
-    "avanco",
-    "cai",
-    "caem",
-    "caiu",
-    "contrai",
-    "corte",
-    "cortes",
-    "desacelera",
-    "desaceleracao",
-    "desvaloriza",
-    "despenca",
-    "dispara",
-    "eleva",
-    "otimismo",
-    "pessimismo",
-    "pressao",
-    "projecao",
-    "projecoes",
-    "queda",
-    "recorde",
-    "recua",
-    "recuo",
-    "reduz",
-    "reducao",
-    "revisa",
-    "revisao",
-    "rompe",
-    "salta",
-    "sobe",
-    "sobem",
-    "subiu",
-    "suspende",
-    "surpreende",
-    "surpresa",
-    "valoriza",
-    "veto",
-}
+FOCUSED_TOPIC_KEYWORDS = (
+    _FOCUSED_CENTRAL_BANK_TOPIC_KEYWORDS
+    | _FOCUSED_MARKET_TOPIC_KEYWORDS
+)
 
 SOURCE_PRIORITY: dict[str, int] = {
     "Valor Econômico": 0,
@@ -326,7 +270,6 @@ SOURCE_PRIORITY: dict[str, int] = {
 GROSS_SECTION_ALLOWLIST: dict[str, set[str]] = {
     "InfoMoney": {
         "mercados",
-        "onde-investir",
         "economia",
         "negocios",
         "fundos",
@@ -363,6 +306,7 @@ GROSS_SECTION_DENYLIST: dict[str, set[str]] = {
         "casual",
         "carreira",
         "esg",
+        "minhas-financas",
         "pop",
         "science-health",
     },
@@ -375,57 +319,9 @@ GROSS_SECTION_DENYLIST: dict[str, set[str]] = {
 }
 
 STRICT_SECTION_SIGNAL_THRESHOLD: dict[str, int] = {
-    "brasil": 6,
-    "legislacao": 5,
-    "mundo": 5,
+    "empresas": 4,
+    "negocios": 4,
     "politica": 6,
-}
-
-HIGH_SCRUTINY_SECTIONS: set[str] = {
-    "agronegocios",
-    "brasil",
-    "colunistas",
-    "empresas",
-    "legislacao",
-    "mundo",
-    "negocios",
-    "politica",
-}
-
-ADVISORY_SECTIONS: set[str] = {
-    "advisor",
-    "invest",
-    "onde-investir",
-}
-
-EDITORIAL_SECTIONS: set[str] = {
-    "advisor",
-    "colunistas",
-    "invest",
-    "negocios",
-    "onde-investir",
-}
-
-EDITORIAL_TITLE_MARKERS: set[str] = {
-    "a fintech de",
-    "destaques da semana",
-    "aposta do ano",
-    "entenda a data",
-    "motores de retorno",
-    "na carteira do",
-    "o ceo que",
-    "os destaques da semana",
-    "qual o saldo",
-    "veja detalhes",
-    "vira aposta",
-}
-
-EDITORIAL_LEAD_MARKERS: set[str] = {
-    "gestor da casa",
-    "portifolio da xp asset",
-    "portfolio da xp asset",
-    "responsaveis pelo desempenho dos fundos",
-    "xp asset",
 }
 
 CORPORATE_ANNOUNCEMENT_TITLE_MARKERS: set[str] = {
@@ -492,67 +388,52 @@ CORPORATE_ANNOUNCEMENT_TITLE_MARKERS: set[str] = {
 
 FINAL_SECTION_DENYLIST: set[str] = {
     "esg",
+    "onde-investir",
 }
 
-BOILERPLATE_SNIPPETS: set[str] = {
-    "publicidade",
-    "acompanhe os mercados com nossas ferramentas",
-    "conheca o valor one",
-    "conheça o valor one",
-    "continua depois da publicidade",
-    "leia mais",
-    "saiba mais",
-    "veja tambem",
-    "veja também",
-    "receba as noticias",
-    "receba as notícias",
-    "assine agora",
+RAW_PATH_DENYLIST_MARKERS: set[str] = {
+    f"/{section}/" for section in _RAW_PATH_DENY_SECTIONS
 }
 
-SPONSORED_AUTHOR_MARKERS: set[str] = {
-    "exame solutions",
-}
+GENERIC_TITLE_DENYLIST: set[str] = _LIVE_COVERAGE_TITLE_MARKERS
 
-SPONSORED_TEXT_MARKERS: set[str] = {
-    "parceiro institucional",
-}
-
-GENERIC_TITLE_DENYLIST: set[str] = {
-    "ao vivo",
-    "cobertura ao vivo",
-    "destaques",
-    "minuto a minuto",
-    "ultimas noticias",
-    "ultimas notícias",
+GENERIC_TITLE_MARKERS: set[str] = {
+    "after market",
+    "after-market",
+    "comprar ou vender",
+    "como investir",
+    "eventos que o mercado deve olhar",
+    "no radar",
+    "vale a pena",
+    "veja mais",
 }
 
 ROUNDUP_URL_MARKERS: set[str] = {
     "ao-vivo",
+    "after-market",
+    "comprar-ou-vender",
     "cobertura-ao-vivo",
     "destaques",
     "minuto-a-minuto",
+    "no-radar",
     "ultimas-noticias",
 }
 
 OUTPUT_FIELDS: tuple[str, ...] = (
     "source",
     "url",
-    "section",
-    "authors",
-    "tags",
-    "title",
-    "description",
-    "lead",
-    "sentiment_text",
     "published_at",
     "week_key",
     "week_start",
     "week_end",
-    "weekday",
+    "tags",
+    "title",
+    "description",
+    "sentiment_text",
 )
 
 DEFAULT_REQUEST_DELAY: float = 0.2
-DEFAULT_ATTEMPT_MULTIPLIER: int = 6
+DEFAULT_MAX_CONCURRENT_REQUESTS_PER_ORIGIN: int = 4
 DEFAULT_RANDOM_SEED: int = 42
 DEFAULT_ENRICH_WORKERS: int = 8
 DEFAULT_SITEMAP_WORKERS: int = 16
